@@ -21,7 +21,7 @@ bot.help(ctx => {
 bot.inlineQuery(/.+/, async (ctx) => {
     let query = ctx.update.inline_query.query;
     console.log(query);
-    const url = `https://api.consumet.org/anime/zoro/${query}`;
+    const url = `https://api.consumet.org/anime/gogoanime/${query}`;
     await axios.get(url)
         .then(res => {
             let data = res.data.results;
@@ -61,7 +61,7 @@ bot.inlineQuery(/.+/, async (ctx) => {
 bot.command('/getInfo', async (ctx) => {
     ctx.deleteMessage();
     let id = ctx.update.message.text.slice(11);
-    const url = `https://api.consumet.org/anime/zoro/info?id=${id}`;
+    const url = `https://api.consumet.org/anime/gogoanime/info/${id}`;
     let data;
     await axios.get(url)
         .then(res => {
@@ -71,7 +71,6 @@ bot.command('/getInfo', async (ctx) => {
             console.log("ERROR")
         })
     animeData = data;
-    animeData.apiname = 'zoro'
     ctx.replyWithPhoto(data.image, {
         caption: `<b>Title</b> : <i>${data.title}</i>\n<b>Type</b> : <i>${data.type}</i>\n<b>Sub/Dub</b> : <i>${data.subOrDub}</i>\n<b>Total Episodes</b> : <i>${data.totalEpisodes}</i>\n\n`,
         parse_mode: 'HTML',
@@ -86,7 +85,7 @@ bot.command('/getInfo', async (ctx) => {
                 [
                     {
                         text: `Watch ${data.title}`,
-                        url: `${data.url}`
+                        url: "https://www1.gogoanime.bid/" + `${data.url}`
                     }
                 ]
             ]
@@ -96,7 +95,7 @@ bot.command('/getInfo', async (ctx) => {
 
 bot.action("readmore", ctx => {
     ctx.answerCbQuery();
-    let watchurl = (animeData.apiname === 'zoro') ? animeData.url : ('https://www1.gogoanime.bid/' + animeData.url)
+    let watchurl = ('https://www1.gogoanime.bid/' + animeData.url)
     ctx.reply(`<b>Description</b> : \n<i>${animeData.description}</i>`,
         {
             parse_mode: 'HTML',
