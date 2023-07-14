@@ -14,22 +14,28 @@ bot.start(ctx => {
 })
 
 bot.help(ctx => {
-    let message = 'We are still under development process\nWe will be up soon\nThanks for visiting';
+    let message =
+        "We are still under development process\n"
+        + "We will be up soon\nThanks for visiting";
     ctx.reply(message);
 })
 
 bot.inlineQuery(/.+/, async (ctx) => {
     let query = ctx.update.inline_query.query;
     console.log(query);
-    const url = `https://api.consumet.org/anime/gogoanime/${query}`;
+    const url = process.env.SEARCH_API_URL + `${query}`;
     await axios.get(url)
         .then(res => {
             let data = res.data.results;
             let results = data.map((item, index) => {
+                let imgurl = encodeURI(item.image);
+                imgurl.replace("%3A", ":");
+                imgurl.replace("%2F", "/");
+                console.log(imgurl);
                 return {
                     type: 'article',
                     id: index,
-                    thumb_url: item.image,
+                    thumb_url: imgurl,
                     thumb_width: 280,
                     thumb_height: 400,
                     title: item.title,
@@ -59,9 +65,13 @@ bot.inlineQuery(/.+/, async (ctx) => {
 })
 
 bot.command('/getInfo', async (ctx) => {
-    ctx.deleteMessage();
+    try {
+        ctx.deleteMessage();
+    } catch (error) {
+        console.log('Cannot delete Message - getInfo');
+    }
     let id = ctx.update.message.text.slice(11);
-    const url = `https://api.consumet.org/anime/gogoanime/info/${id}`;
+    const url = process.env.ANIME_INFO_API_URL + `${id}`;
     let data;
     await axios.get(url)
         .then(res => {
@@ -69,47 +79,59 @@ bot.command('/getInfo', async (ctx) => {
         })
         .catch(e => {
             console.log("ERROR")
-        })
+        });
     animeData = data;
-    ctx.replyWithPhoto(data.image, {
-        caption: `<b>Title</b> : <i>${data.title}</i>\n<b>Type</b> : <i>${data.type}</i>\n<b>Sub/Dub</b> : <i>${data.subOrDub}</i>\n<b>Total Episodes</b> : <i>${data.totalEpisodes}</i>\n\n`,
-        parse_mode: 'HTML',
-        reply_markup: {
-            inline_keyboard: [
-                [
-                    {
-                        text: "Read Description",
-                        callback_data: "readmore"
-                    }
-                ],
-                [
-                    {
-                        text: `Watch ${data.title}`,
-                        url: "https://www1.gogoanime.bid/" + `${data.url}`
-                    }
-                ]
-            ]
-        }
-    });
-})
-
-bot.action("readmore", ctx => {
-    ctx.answerCbQuery();
-    let watchurl = ('https://www1.gogoanime.bid/' + animeData.url)
-    ctx.reply(`<b>Description</b> : \n<i>${animeData.description}</i>`,
-        {
+    try {
+        ctx.replyWithPhoto(data.image, {
+            caption: `<b>Title</b> : <i>${data.title}</i>\n` +
+                `<b>Type</b> : <i>${data.type}</i>\n` +
+                `<b>Sub/Dub</b> : <i>${data.subOrDub}</i>\n` +
+                `<b>Total Episodes</b> : <i>${data.totalEpisodes}</i>\n\n`,
             parse_mode: 'HTML',
             reply_markup: {
                 inline_keyboard: [
                     [
                         {
-                            text: `Watch ${animeData.title}`,
-                            url: `${watchurl}`
+                            text: "Read Description",
+                            callback_data: "readmore"
+                        }
+                    ],
+                    [
+                        {
+                            text: `Watch ${data.title}`,
+                            url: process.env.WATCH_ANIME_URL + `${data.url}`
                         }
                     ]
                 ]
             }
         });
+    } catch (e) {
+        ctx.reply('Something went wrong!!');
+    }
+})
+
+bot.action("readmore", ctx => {
+    ctx.answerCbQuery();
+    let watchurl = ('https://www1.gogoanime.bid/' + animeData.url)
+    try {
+        ctx.reply(`<b>Description</b> : \n<i>${animeData.description}</i>`,
+            {
+                parse_mode: 'HTML',
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            {
+                                text: `Watch ${animeData.title}`,
+                                url: `${watchurl}`
+                            }
+                        ]
+                    ]
+                }
+            });
+    } catch (e) {
+        console.log("Readmore - error");
+        ctx.reply('Something went wrong');
+    }
 })
 
 bot.command("/recent", async (ctx) => {
@@ -130,7 +152,7 @@ async function getRecentData(pageNumber) {
     let buttons = [];
     let buttonCount = 0;
     let results = `<b>Recently released episodes\nPage : ${pageNumber}\n\n</b>`;
-    await axios.get("https://api.consumet.org/anime/gogoanime/recent-episodes", { params: { page: pageNumber } })
+    await axios.get(process.env.RECENT_ANIME_API_URL, { params: { page: pageNumber } })
         .then(res => {
             let data = res.data.results;
             for (let i = 0; i < data.length; i++) {
@@ -176,27 +198,33 @@ bot.action("previousPage", async ctx => {
 
 bot.command("/topairing", async (ctx) => {
     let buttons = []
-    await axios.get("https://api.consumet.org/anime/gogoanime/top-airing", { params: { page: 1 } })
+    await axios.get(process.env.TOP_AIRING_API_URL, { params: { page: 1 } })
         .then(res => {
             let data = res.data.results;
             topAiringData = data.map((item) => { return { id: item.id } });
             for (let i = 0; i < data.length; i++) {
                 buttons[i] = [{
-                    text: `${i + 1}.  ${data[i].title.length > 40 ? data[i].title.slice(0, 40) + '...' : data[i].title}`,
+                    text: `${i + 1}.  ${data[i].title.length > 40 ?
+                        data[i].title.slice(0, 40) + '...' :
+                        data[i].title}`,
                     callback_data: `topairing${i}`
                 }]
             }
+            ctx.reply('<i><b>TOP AIRING ANIMES</b></i>', {
+                parse_mode: 'HTML',
+                reply_markup: {
+                    inline_keyboard:
+                        buttons
+                }
+            });
         })
         .catch(e => {
             console.log('error : ' + e.message);
+            ctx.reply(`
+                Something went wrong!!\n
+                Try again later.
+            `)
         })
-    ctx.reply('<i><b>TOP AIRING ANIMES</b></i>', {
-        parse_mode: 'HTML',
-        reply_markup: {
-            inline_keyboard:
-                buttons
-        }
-    });
 });
 
 bot.action(/topairing[0-9]/, async (ctx) => {
@@ -204,13 +232,20 @@ bot.action(/topairing[0-9]/, async (ctx) => {
     let id = '';
     if (topAiringData !== undefined)
         id = topAiringData[parseInt(ctx.match[0].slice(9))].id;
-    await axios.get(`https://api.consumet.org/anime/gogoanime/info/${id}`)
+    else {
+        ctx.reply('Something went wrong\n Try again.');
+        ctx.answerCbQuery();
+    }
+    await axios.get(process.env.ANIME_INFO_API_URL + `${id}`)
         .then(res => {
             data = res.data;
             animeData = data;
-            animeData.apiname = 'gogo'
             ctx.replyWithPhoto(data.image, {
-                caption: `<b>Title</b> : <i>${data.title}</i>\n<b>Genres</b> : <i>${data.genres.join(',')}</i>\n<b>Sub/Dub</b> : <i>${data.subOrDub}</i>\n<b>Total Episodes</b> : <i>${data.totalEpisodes}</i>\n<b>Status : </b><i>${data.status}</i>\n`,
+                caption: `<b>Title</b> : <i>${data.title}</i>\n` +
+                    `<b>Genres</b> : <i>${data.genres.join(',')}</i>\n` +
+                    `<b>Sub/Dub</b> : <i>${data.subOrDub}</i>\n` +
+                    `<b>Total Episodes</b> : <i>${data.totalEpisodes}</i>\n` +
+                    `<b>Status : </b><i>${data.status}</i>\n`,
                 parse_mode: 'HTML',
                 reply_markup: {
                     inline_keyboard: [
@@ -223,7 +258,7 @@ bot.action(/topairing[0-9]/, async (ctx) => {
                         [
                             {
                                 text: `Watch ${data.title}`,
-                                url: `https://www1.gogoanime.bid/${data.url}`
+                                url: process.env.WATCH_ANIME_URL + `${data.url}`
                             }
                         ]
                     ]
